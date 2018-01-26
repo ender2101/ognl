@@ -678,8 +678,11 @@ public abstract class Expression {
 		}
 
 		static boolean evaluate(Context context, Object root, Expression leftExpr, Expression rightExpr) throws OgnlException {
-			Object leftValue = leftExpr.getValue(context, root);
-			for (Iterator<?> it = asIterator(rightExpr.getValue(context, root)); it.hasNext();) {
+			Object leftValue = leftExpr.getValue(context, root), rightValue = rightExpr.getValue(context, root);
+			if (rightValue instanceof Collection<?>) {
+				return ((Collection<?>) rightValue).contains(leftValue);
+			}
+			for (Iterator<?> it = asIterator(rightValue); it.hasNext();) {
 				if (equals(leftValue, it.next())) {
 					return true;
 				}
@@ -4370,6 +4373,9 @@ public abstract class Expression {
 		if (value instanceof Map<?, ?>) {
 			return !((Map<?, ?>) value).isEmpty();
 		}
+		if (value instanceof Character) {
+			return (Character) value != '\0';
+		}
 		return true;
 	}
 
@@ -4615,12 +4621,8 @@ public abstract class Expression {
 
 	public static int compare(Object leftValue, Object rightValue) {
 		assert !(leftValue instanceof LValue) && !(rightValue instanceof LValue);
-		if (leftValue == null) {
-			leftValue = 0;
-		}
-		if (rightValue == null) {
-			rightValue = 0;
-		}
+		Objects.requireNonNull(leftValue);
+		Objects.requireNonNull(rightValue);
 		if (leftValue instanceof Number ? leftValue.getClass() == rightValue.getClass() : !(rightValue instanceof Number) && leftValue instanceof Comparable<?> && rightValue instanceof Comparable<?>) {
 			try {
 				@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -4637,90 +4639,97 @@ public abstract class Expression {
 	public static int compare(Number leftNumber, Number rightNumber) {
 		if (leftNumber instanceof Integer) {
 			int leftInt = (Integer) leftNumber;
-			if (rightNumber instanceof Long) { // int <> long => long <> long
-				long leftLong = leftInt, rightLong = (Long) rightNumber;
-				return leftLong < rightLong ? -1 : leftLong > rightLong ? 1 : 0;
-			}
-			if (rightNumber instanceof Float) { // int <> float => float <> float
-				return Float.compare(leftInt, (Float) rightNumber);
-			}
-			if (rightNumber instanceof Double) { // int <> double => double <> double
-				return Double.compare(leftInt, (Double) rightNumber);
-			}
-			if (rightNumber instanceof BigInteger) { // int <> BigInteger => BigInteger <> BigInteger
-				return BigInteger.valueOf(leftInt).compareTo((BigInteger) rightNumber);
-			}
-			if (rightNumber instanceof BigDecimal) { // int <> BigDecimal => BigDecimal <> BigDecimal
-				return BigDecimal.valueOf(leftInt).compareTo((BigDecimal) rightNumber);
+			if (!(rightNumber instanceof Integer)) {
+				if (rightNumber instanceof Long) { // int <> long => long <> long
+					return Long.compare(leftInt, (Long) rightNumber);
+				}
+				if (rightNumber instanceof Float) { // int <> float => float <> float
+					return Float.compare(leftInt, (Float) rightNumber);
+				}
+				if (rightNumber instanceof Double) { // int <> double => double <> double
+					return Double.compare(leftInt, (Double) rightNumber);
+				}
+				if (rightNumber instanceof BigInteger) { // int <> BigInteger => BigInteger <> BigInteger
+					return BigInteger.valueOf(leftInt).compareTo((BigInteger) rightNumber);
+				}
+				if (rightNumber instanceof BigDecimal) { // int <> BigDecimal => BigDecimal <> BigDecimal
+					return BigDecimal.valueOf(leftInt).compareTo((BigDecimal) rightNumber);
+				}
 			}
 			// int <> ? => int <> int
-			int rightInt = rightNumber.intValue();
-			return leftInt < rightInt ? -1 : leftInt > rightInt ? 1 : 0;
+			return Integer.compare(leftInt, rightNumber.intValue());
 		}
 		if (leftNumber instanceof Long) {
 			long leftLong = (Long) leftNumber;
-			if (rightNumber instanceof Integer) { // long <> int => long <> long
-				long rightLong = (Integer) rightNumber;
-				return leftLong < rightLong ? -1 : leftLong > rightLong ? 1 : 0;
-			}
-			if (rightNumber instanceof Float) { // long <> float => float <> float
-				return Float.compare(leftLong, (Float) rightNumber);
-			}
-			if (rightNumber instanceof Double) { // long <> double => double <> double
-				return Double.compare(leftLong, (Double) rightNumber);
-			}
-			if (rightNumber instanceof BigInteger) { // long <> BigInteger => BigInteger <> BigInteger
-				return BigInteger.valueOf(leftLong).compareTo((BigInteger) rightNumber);
-			}
-			if (rightNumber instanceof BigDecimal) { // long <> BigDecimal => BigDecimal <> BigDecimal
-				return BigDecimal.valueOf(leftLong).compareTo((BigDecimal) rightNumber);
+			if (!(rightNumber instanceof Long)) {
+				if (rightNumber instanceof Integer) { // long <> int => long <> long
+					return Long.compare(leftLong, (Integer) rightNumber);
+				}
+				if (rightNumber instanceof Float) { // long <> float => float <> float
+					return Float.compare(leftLong, (Float) rightNumber);
+				}
+				if (rightNumber instanceof Double) { // long <> double => double <> double
+					return Double.compare(leftLong, (Double) rightNumber);
+				}
+				if (rightNumber instanceof BigInteger) { // long <> BigInteger => BigInteger <> BigInteger
+					return BigInteger.valueOf(leftLong).compareTo((BigInteger) rightNumber);
+				}
+				if (rightNumber instanceof BigDecimal) { // long <> BigDecimal => BigDecimal <> BigDecimal
+					return BigDecimal.valueOf(leftLong).compareTo((BigDecimal) rightNumber);
+				}
 			}
 			// long <> ? => long <> long
-			long rightLong = rightNumber.longValue();
-			return leftLong < rightLong ? -1 : leftLong > rightLong ? 1 : 0;
+			return Long.compare(leftLong, rightNumber.longValue());
 		}
 		if (leftNumber instanceof Float) {
 			float leftFloat = (Float) leftNumber;
-			if (rightNumber instanceof Integer) { // float <> int => float <> float
-				return Float.compare(leftFloat, (Integer) rightNumber);
-			}
-			if (rightNumber instanceof Long) { // float <> long => float <> float
-				return Float.compare(leftFloat, (Long) rightNumber);
-			}
-			if (rightNumber instanceof Double) { // float <> double => double <> double
-				return Double.compare(leftFloat, (Double) rightNumber);
-			}
-			if (rightNumber instanceof BigInteger) { // float <> BigInteger => BigDecimal <> BigDecimal
-				return BigDecimal.valueOf(leftFloat).compareTo(new BigDecimal((BigInteger) rightNumber));
-			}
-			if (rightNumber instanceof BigDecimal) { // float <> BigDecimal => BigDecimal <> BigDecimal
-				return BigDecimal.valueOf(leftFloat).compareTo((BigDecimal) rightNumber);
+			if (!(rightNumber instanceof Float)) {
+				if (rightNumber instanceof Integer) { // float <> int => float <> float
+					return Float.compare(leftFloat, (Integer) rightNumber);
+				}
+				if (rightNumber instanceof Long) { // float <> long => float <> float
+					return Float.compare(leftFloat, (Long) rightNumber);
+				}
+				if (rightNumber instanceof Double) { // float <> double => double <> double
+					return Double.compare(leftFloat, (Double) rightNumber);
+				}
+				if (rightNumber instanceof BigInteger) { // float <> BigInteger => BigDecimal <> BigDecimal
+					return BigDecimal.valueOf(leftFloat).compareTo(new BigDecimal((BigInteger) rightNumber));
+				}
+				if (rightNumber instanceof BigDecimal) { // float <> BigDecimal => BigDecimal <> BigDecimal
+					return BigDecimal.valueOf(leftFloat).compareTo((BigDecimal) rightNumber);
+				}
 			}
 			// float <> ? => float <> float
 			return Float.compare(leftFloat, rightNumber.floatValue());
 		}
 		if (leftNumber instanceof Double) {
 			double leftDouble = (Double) leftNumber;
-			if (rightNumber instanceof Integer) { // double <> int => double <> double
-				return Double.compare(leftDouble, (Integer) rightNumber);
-			}
-			if (rightNumber instanceof Long) { // double <> long => double <> double
-				return Double.compare(leftDouble, (Long) rightNumber);
-			}
-			if (rightNumber instanceof Float) { // double <> float => double <> double
-				return Double.compare(leftDouble, (Float) rightNumber);
-			}
-			if (rightNumber instanceof BigInteger) { // double <> BigInteger => BigDecimal <> BigDecimal
-				return BigDecimal.valueOf(leftDouble).compareTo(new BigDecimal((BigInteger) rightNumber));
-			}
-			if (rightNumber instanceof BigDecimal) { // double <> BigDecimal => BigDecimal <> BigDecimal
-				return BigDecimal.valueOf(leftDouble).compareTo((BigDecimal) rightNumber);
+			if (!(rightNumber instanceof Double)) {
+				if (rightNumber instanceof Integer) { // double <> int => double <> double
+					return Double.compare(leftDouble, (Integer) rightNumber);
+				}
+				if (rightNumber instanceof Long) { // double <> long => double <> double
+					return Double.compare(leftDouble, (Long) rightNumber);
+				}
+				if (rightNumber instanceof Float) { // double <> float => double <> double
+					return Double.compare(leftDouble, (Float) rightNumber);
+				}
+				if (rightNumber instanceof BigInteger) { // double <> BigInteger => BigDecimal <> BigDecimal
+					return BigDecimal.valueOf(leftDouble).compareTo(new BigDecimal((BigInteger) rightNumber));
+				}
+				if (rightNumber instanceof BigDecimal) { // double <> BigDecimal => BigDecimal <> BigDecimal
+					return BigDecimal.valueOf(leftDouble).compareTo((BigDecimal) rightNumber);
+				}
 			}
 			// double <> ? => double <> double
 			return Double.compare(leftDouble, rightNumber.doubleValue());
 		}
 		if (leftNumber instanceof BigInteger) {
 			BigInteger leftBigInteger = (BigInteger) leftNumber;
+			if (rightNumber instanceof BigInteger) {
+				return leftBigInteger.compareTo((BigInteger) rightNumber);
+			}
 			if (rightNumber instanceof Integer) { // BigInteger <> int => BigInteger <> BigInteger
 				return leftBigInteger.compareTo(BigInteger.valueOf((Integer) rightNumber));
 			}
@@ -4741,6 +4750,9 @@ public abstract class Expression {
 		}
 		if (leftNumber instanceof BigDecimal) {
 			BigDecimal leftBigDecimal = (BigDecimal) leftNumber;
+			if (rightNumber instanceof BigDecimal) {
+				return leftBigDecimal.compareTo((BigDecimal) rightNumber);
+			}
 			if (rightNumber instanceof Integer) { // BigDecimal <> int => BigDecimal <> BigDecimal
 				return leftBigDecimal.compareTo(BigDecimal.valueOf((Integer) rightNumber));
 			}
@@ -4761,55 +4773,47 @@ public abstract class Expression {
 		}
 		if (leftNumber instanceof Byte) {
 			byte leftByte = (Byte) leftNumber;
-			if (rightNumber instanceof Integer) { // byte <> int => int <> int
-				int leftInt = leftByte, rightInt = (Integer) rightNumber;
-				return leftInt < rightInt ? -1 : leftInt > rightInt ? 1 : 0;
-			}
-			if (rightNumber instanceof Long) { // byte <> long => long <> long
-				long leftLong = leftByte, rightLong = (Long) rightNumber;
-				return leftLong < rightLong ? -1 : leftLong > rightLong ? 1 : 0;
-			}
-			if (rightNumber instanceof Float) { // byte <> float => float <> float
-				return Float.compare(leftByte, (Float) rightNumber);
-			}
-			if (rightNumber instanceof Double) { // byte <> double => double <> double
-				return Double.compare(leftByte, (Double) rightNumber);
-			}
-			if (rightNumber instanceof BigInteger) { // byte <> BigInteger => BigInteger <> BigInteger
-				return BigInteger.valueOf(leftByte).compareTo((BigInteger) rightNumber);
-			}
-			if (rightNumber instanceof BigDecimal) { // byte <> BigDecimal => BigDecimal <> BigDecimal
-				return BigDecimal.valueOf(leftByte).compareTo((BigDecimal) rightNumber);
+			if (!(rightNumber instanceof Byte) && !(rightNumber instanceof Integer)) {
+				if (rightNumber instanceof Long) { // byte <> long => long <> long
+					return Long.compare(leftByte, (Long) rightNumber);
+				}
+				if (rightNumber instanceof Float) { // byte <> float => float <> float
+					return Float.compare(leftByte, (Float) rightNumber);
+				}
+				if (rightNumber instanceof Double) { // byte <> double => double <> double
+					return Double.compare(leftByte, (Double) rightNumber);
+				}
+				if (rightNumber instanceof BigInteger) { // byte <> BigInteger => BigInteger <> BigInteger
+					return BigInteger.valueOf(leftByte).compareTo((BigInteger) rightNumber);
+				}
+				if (rightNumber instanceof BigDecimal) { // byte <> BigDecimal => BigDecimal <> BigDecimal
+					return BigDecimal.valueOf(leftByte).compareTo((BigDecimal) rightNumber);
+				}
 			}
 			// byte <> ? => int <> int
-			int leftInt = leftByte, rightInt = rightNumber.intValue();
-			return leftInt < rightInt ? -1 : leftInt > rightInt ? 1 : 0;
+			return Integer.compare(leftByte, rightNumber.intValue());
 		}
 		if (leftNumber instanceof Short) {
 			short leftShort = (Short) leftNumber;
-			if (rightNumber instanceof Integer) { // short <> int => int <> int
-				int leftInt = leftShort, rightInt = (Integer) rightNumber;
-				return leftInt < rightInt ? -1 : leftInt > rightInt ? 1 : 0;
-			}
-			if (rightNumber instanceof Long) { // short <> long => long <> long
-				long leftLong = leftShort, rightLong = (Long) rightNumber;
-				return leftLong < rightLong ? -1 : leftLong > rightLong ? 1 : 0;
-			}
-			if (rightNumber instanceof Float) { // short <> float => float <> float
-				return Float.compare(leftShort, (Float) rightNumber);
-			}
-			if (rightNumber instanceof Double) { // short <> double => double <> double
-				return Double.compare(leftShort, (Double) rightNumber);
-			}
-			if (rightNumber instanceof BigInteger) { // short <> BigInteger => BigInteger <> BigInteger
-				return BigInteger.valueOf(leftShort).compareTo((BigInteger) rightNumber);
-			}
-			if (rightNumber instanceof BigDecimal) { // short <> BigDecimal => BigDecimal <> BigDecimal
-				return BigDecimal.valueOf(leftShort).compareTo((BigDecimal) rightNumber);
+			if (!(rightNumber instanceof Short) && !(rightNumber instanceof Integer)) {
+				if (rightNumber instanceof Long) { // short <> long => long <> long
+					return Long.compare(leftShort, (Long) rightNumber);
+				}
+				if (rightNumber instanceof Float) { // short <> float => float <> float
+					return Float.compare(leftShort, (Float) rightNumber);
+				}
+				if (rightNumber instanceof Double) { // short <> double => double <> double
+					return Double.compare(leftShort, (Double) rightNumber);
+				}
+				if (rightNumber instanceof BigInteger) { // short <> BigInteger => BigInteger <> BigInteger
+					return BigInteger.valueOf(leftShort).compareTo((BigInteger) rightNumber);
+				}
+				if (rightNumber instanceof BigDecimal) { // short <> BigDecimal => BigDecimal <> BigDecimal
+					return BigDecimal.valueOf(leftShort).compareTo((BigDecimal) rightNumber);
+				}
 			}
 			// short <> ? => int <> int
-			int leftInt = leftShort, rightInt = rightNumber.intValue();
-			return leftInt < rightInt ? -1 : leftInt > rightInt ? 1 : 0;
+			return Integer.compare(leftShort, rightNumber.intValue());
 		}
 		// ? <> ? => double <> double
 		return Double.compare(leftNumber.doubleValue(), rightNumber.doubleValue());
