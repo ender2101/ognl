@@ -2124,7 +2124,7 @@ public abstract class Expression {
 
 		private static final int QUALIFIED_PRECEDENCE = 14, UNQUALIFIED_PRECEDENCE = 15;
 
-		private final ConcurrentHashMap<Pair<Class<?>, List<? extends Class<?>>>, Method> cache = new ConcurrentHashMap<>(0);
+		private final ConcurrentHashMap<Pair<Class<?>, List<? extends Class<?>>>, Object> cache = new ConcurrentHashMap<>(0);
 
 		public MethodInvocation(String methodName, Expression... argExprs) {
 			this(null, methodName, argExprs);
@@ -2189,10 +2189,6 @@ public abstract class Expression {
 
 		@Override
 		Object evaluate(Context context, Object root) throws OgnlException {
-			Object object = objExpr == null ? root : objExpr.getValue(context, root);
-			if (object == null) {
-				throw new NullPointerException(objExpr == null ? null : objExpr.toString());
-			}
 			Expression[] argExprs = this.argExprs;
 			Object[] args = new Object[argExprs.length];
 			Class<?>[] argTypes = new Class<?>[argExprs.length];
@@ -2202,24 +2198,53 @@ public abstract class Expression {
 					argTypes[index] = arg.getClass();
 				}
 			}
-			Class<?> objClass = object.getClass();
-			Method method;
-			try {
-				method = cache.computeIfAbsent(new Pair<>(objClass, Arrays.asList(argTypes)), k -> {
-					try {
-						return ClassUtil.findMostSpecificInstanceMethod(k.first, methodName, argTypes);
+			Method method = null;
+			Object object;
+			Pair<Class<?>, List<? extends Class<?>>> cacheKey = new Pair<>(null, Arrays.asList(argTypes));
+			if (objExpr == null) {
+				try {
+					if (context.hasGlobalMethods() && (object = cache.computeIfAbsent(cacheKey, k -> {
+						try {
+							Method m = context.findGlobalMethod(methodName, argTypes);
+							return m == null ? Boolean.FALSE : m;
+						}
+						catch (AmbiguousMethodException e) {
+							throw new UndeclaredThrowableException(e);
+						}
+					})) != Boolean.FALSE) {
+						method = (Method) object;
+						object = null;
 					}
-					catch (NoSuchMethodException | AmbiguousMethodException e) {
-						throw new UndeclaredThrowableException(e);
+					else if ((object = root) == null) {
+						throw new NullPointerException();
 					}
-				});
+				}
+				catch (UndeclaredThrowableException e) {
+					Throwable cause = e.getCause();
+					throw cause instanceof OgnlException ? (OgnlException) cause : new OgnlException(this, cause);
+				}
 			}
-			catch (UndeclaredThrowableException e) {
-				Throwable cause = e.getCause();
-				throw cause instanceof OgnlException ? (OgnlException) cause : new OgnlException(this, cause);
+			else if ((object = objExpr.getValue(context, root)) == null) {
+				throw new NullPointerException(objExpr.toString());
 			}
 			if (method == null) {
-				throw new OgnlException(this, appendTypeNames(new StringBuilder().append(objClass).append(" has no accessible instance method \"").append(methodName).append("\" callable with argument types ("), argTypes).append(')').toString());
+				Class<?> objClass = cacheKey.first = object.getClass();
+				try {
+					if ((method = (Method) cache.computeIfAbsent(cacheKey, k -> {
+						try {
+							return ClassUtil.findMostSpecificExecutable(ClassUtil.findApplicableInstanceMethods(k.first, methodName, argTypes), argTypes);
+						}
+						catch (AmbiguousMethodException e) {
+							throw new UndeclaredThrowableException(e);
+						}
+					})) == null) {
+						throw new OgnlException(this, appendTypeNames(new StringBuilder().append(objClass).append(" has no accessible instance method \"").append(methodName).append("\" callable with argument types ("), argTypes).append(')').toString());
+					}
+				}
+				catch (UndeclaredThrowableException e) {
+					Throwable cause = e.getCause();
+					throw cause instanceof OgnlException ? (OgnlException) cause : new OgnlException(this, cause);
+				}
 			}
 			try {
 				return ClassUtil.invokeMethod(method, object, args);
