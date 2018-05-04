@@ -66,6 +66,7 @@ public class OgnlEvaluationTest {
 		assertEquals(42d / 37, eval(null, null, "42d / 37"));
 		assertEquals(42d / 37, eval(null, 42, "doubleValue / 37"));
 		assertEquals(42, eval(null, null, "+\"42\""));
+		assertEquals(42, eval(null, null, "0d / 0 || 42"));
 		assertEquals(true, eval(null, Arrays.<Object> asList("foo", "bar", "baz", 42), "!#this.{? !(#this instanceof java.lang.Number || #this instanceof java.lang.String) }"));
 		assertEquals("baz", eval(null, new Object[] { "foo", "bar", "baz" }, "[2]"));
 		assertEquals("foo", eval(null, Arrays.asList("foo", "bar", "baz"), "[0]"));

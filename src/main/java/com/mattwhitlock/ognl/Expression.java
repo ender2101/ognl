@@ -4373,10 +4373,12 @@ public abstract class Expression {
 				return (Long) value != 0;
 			}
 			if (value instanceof Float) {
-				return (Float) value != 0;
+				float floatValue = (Float) value;
+				return floatValue != 0 && !Float.isNaN(floatValue);
 			}
 			if (value instanceof Double) {
-				return (Double) value != 0;
+				double doubleValue = (Double) value;
+				return doubleValue != 0 && !Double.isNaN(doubleValue);
 			}
 			if (value instanceof BigInteger) {
 				return ((BigInteger) value).signum() != 0;
